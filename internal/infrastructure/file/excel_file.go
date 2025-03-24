@@ -49,12 +49,10 @@ func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
 	}()
 
 	var client []entity.Excel
-
 	column := "R"
 	d := "B"
 
 	counter := make(map[string]int)
-
 	for row := 3; row < 1000; row++ {
 
 		login, err := f.GetCellValue(sheet, fmt.Sprintf("%s%d", d, row))
@@ -116,7 +114,6 @@ func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
 
 func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 	path := "./../storage/input/a.xlsx"
-
 	f, err := excelize.OpenFile(path)
 	if err != nil {
 		fmt.Println(err)
