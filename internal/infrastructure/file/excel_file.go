@@ -131,7 +131,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 	}()
 
 	rowData, err := scanDocument(f)
-	if err != nil { 
+	if err != nil {
 		return err
 	}
 
@@ -140,126 +140,9 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 		fmt.Println("Array is empty_: ", rowData)
 	}
 
-	// где то сдесь можно сделать пометку разолкации 
+	// где то сдесь можно сделать пометку разолкации
 
-	// проверка фирм куда поступил платеж медиаплощадь vs адверта 
-
-	// rtr := []entity.PivotTable{
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "11111",
-	// 			Date:            "18.01.2024",
-	// 			Amount:          "20001.3",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "150/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "7734635335",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "18.01.2024",
-	// 			Amount: "22050.0",
-	// 		},
-	// 	},
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "22222",
-	// 			Date:            "28.02.2025",
-	// 			Amount:          "20001.3",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "151/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "7734635335",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "28.02.2025",
-	// 			Amount: "22050.0",
-	// 		},
-	// 	},
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "33333",
-	// 			Date:            "01.01.2024",
-	// 			Amount:          "20001.3",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "152/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "5029283828",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "01.01.2024",
-	// 			Amount: "20001,3",
-	// 		},
-	// 	},
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "44444",
-	// 			Date:            "02.01.2024",
-	// 			Amount:          "7554.25",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "153/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "5029283828",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "02.01.2024",
-	// 			Amount: "7554,25",
-	// 		},
-	// 	},
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "55555",
-	// 			Date:            "03.01.2024",
-	// 			Amount:          "20001.3",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "154/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "5029283828",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "03.01.2024",
-	// 			Amount: "20001,3",
-	// 		},
-	// 	},
-	// 	{
-	// 		Acts: entity.Acts{
-	// 			StatementNumber: "66666",
-	// 			Date:            "04.01.2024",
-	// 			Amount:          "20001.3",
-	// 			Company:         "Труба-Обсадная. Ру",
-	// 			Payer:           "Деловая Труба МедиаПлощадь",
-	// 			SelfPayer:       "ГК РЕ",
-	// 			Bill:            "155/25",
-	// 			Lot:             "РЕ 402/25",
-	// 			LinkBill:        "/admin/bills/208469",
-	// 			IdPayer:         "5029283828",
-	// 			SiteID:          "4191195",
-	// 		},
-	// 		Bills: entity.Bills{
-	// 			Date:   "04.01.2024",
-	// 			Amount: "20001,3",
-	// 		},
-	// 	},
-	// }
+	// проверка фирм куда поступил платеж медиаплощадь vs адверта
 
 	groupItem := make(map[string][]entity.PivotTable)
 	for _, v := range item {
@@ -423,8 +306,6 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 
 	return nil
 }
-
-
 
 func updateNumber(rowData []RowData, idPayer string) ([]RowNum, error) {
 
