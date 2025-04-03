@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"ord_crm/cmd/app"
-	pgdb "ord_crm/internal/infrastructure/database/postgres"
-	redisdb "ord_crm/internal/infrastructure/database/redis"
+	pgdb "ord_crm/internal/database/postgres"
+	redisdb "ord_crm/internal/database/redis"
 )
 
 func main() {

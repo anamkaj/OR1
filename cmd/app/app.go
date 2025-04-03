@@ -3,11 +3,10 @@ package app
 import (
 	"fmt"
 	"github.com/redis/go-redis/v9"
-	"ord_crm/config"
-	"ord_crm/internal/application"
-	"ord_crm/internal/domain/entity"
-	"ord_crm/internal/infrastructure/api"
-	"ord_crm/internal/infrastructure/file"
+	"ord_crm/internal/config"
+	"ord_crm/internal/crm_parser"
+	"ord_crm/internal/excel_parser"
+	"ord_crm/internal/scraper"
 )
 
 type AppModule struct {
@@ -27,44 +26,50 @@ func (a *AppModule) App() error {
 		return err
 	}
 
-	e := file.NewExcelRepo()
+	e := excel.NewExcelRepo()
 	list, err := e.ExcelParse()
 	if err != nil {
 		fmt.Println("Error parsing file excel...:", err)
 		return err
 	}
 
-	searchRepo := api.NewSearchRepo(entity.Search{
+	searchRepo := scraper.NewSearchRepo(scraper.Search{
 		Token:     token.Token,
 		Session:   token.Session,
 		SearchURL: token.SearchURL,
 		BillsURL:  token.BillsURL,
 	})
-	searchService := application.NewSearchService(searchRepo)
 
-	companyRepo := api.NewCompanyRepo(token.BaseURL, token.Session)
-	companyService := application.NewCompanyService(companyRepo)
+	companyRepo := crm.NewCompanyRepo(token.BaseURL, token.Session)
 
-	var allData [][]entity.PivotTable
+	var allData [][]scraper.PivotTable
 
 	for _, c := range list {
 
 		// Для того что бы забирать акты только по мегатрифику .
 
-		id, err := searchService.SearchID(c.ID)
-		if err != nil {
-			fmt.Println("Error search inn client")
-		}
+		fmt.Printf("ID: %s\n", c.ID)
 
-		billArray, err := companyService.GetClientLot(id)
+		id, err := searchRepo.SearchID(c.ID)
 		if err != nil {
-			fmt.Println("error get array lot")
+			fmt.Println("Error search inn client", err)
 			return err
 		}
 
-		data, err := searchService.ActSearch(c.ID, billArray)
+		if id == 0 {
+			fmt.Printf("ID is empty: %s\n", c.ID)
+			continue
+		}
+
+		billArray, err := companyRepo.GetClientLot(id)
 		if err != nil {
-			fmt.Println("error get data from CRM")
+			fmt.Println("error get array lot", err)
+			return err
+		}
+
+		data, err := searchRepo.ActSearch(c.ID, billArray)
+		if err != nil {
+			fmt.Println("error get data from CRM", err)
 			return err
 		}
 
