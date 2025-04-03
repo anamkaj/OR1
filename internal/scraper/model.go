@@ -1,4 +1,10 @@
-package entity
+package scraper
+
+type SearchInterface interface {
+	SearchID(id string) (int, error)
+	ActSearch(id string, bill []string) ([]PivotTable, error)
+	Bills(link string) (Bills, error)
+}
 
 type Search struct {
 	Token     string

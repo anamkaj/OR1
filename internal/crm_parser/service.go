@@ -1,12 +1,10 @@
-package api
+package crm
 
 import (
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"ord_crm/internal/domain/repository"
-	"ord_crm/internal/models"
 )
 
 type CompanyApi struct {
@@ -14,14 +12,14 @@ type CompanyApi struct {
 	session string
 }
 
-func NewCompanyRepo(baseURL string, session string) repository.CompanyRepository {
+func NewCompanyRepo(baseURL string, session string) CompanyRepository {
 	return &CompanyApi{
-		baseURL: baseURL,
+		baseURL: baseURL, 
 		session: session,
 	}
 }
 
-func (r *CompanyApi) GetClientList(user_id string, page int) ([]models.CompanyList, error) {
+func (r *CompanyApi) GetClientList(user_id string, page int) ([]CompanyList, error) {
 	url := fmt.Sprintf("%s/clients?user_id=%s&page=%d", r.baseURL, user_id, page)
 
 	client := http.Client{}
@@ -52,7 +50,7 @@ func (r *CompanyApi) GetClientList(user_id string, page int) ([]models.CompanyLi
 
 	switch string(body[0]) {
 	case "{":
-		var data models.CompanyPage
+		var data CompanyPage
 		if err := json.Unmarshal(body, &data); err != nil {
 			return nil, fmt.Errorf("error serialization JSON: %w", err)
 		}
@@ -60,7 +58,7 @@ func (r *CompanyApi) GetClientList(user_id string, page int) ([]models.CompanyLi
 		return data.Data, nil
 
 	case "[":
-		var data []models.CompanyList
+		var data []CompanyList
 		if err := json.Unmarshal(body, &data); err != nil {
 			return nil, fmt.Errorf("error serialization JSON: %w", err)
 		}
@@ -97,7 +95,7 @@ func (r *CompanyApi) GetClientLot(company int) ([]string, error) {
 		return nil, fmt.Errorf("error reade body response: %w", err)
 	}
 
-	var data []models.LotList
+	var data []LotList
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("error serialization JSON: %w", err)
 	}
@@ -113,7 +111,7 @@ func (r *CompanyApi) GetClientLot(company int) ([]string, error) {
 	return filteredData, nil
 }
 
-func (r *CompanyApi) GetClientBills(company int) ([]models.BillsList, error) {
+func (r *CompanyApi) GetClientBills(company int) ([]BillsList, error) {
 	url := fmt.Sprintf("%s/additional_bills_info?client_id=%d", r.baseURL, company)
 
 	client := http.Client{}
@@ -137,7 +135,7 @@ func (r *CompanyApi) GetClientBills(company int) ([]models.BillsList, error) {
 		return nil, fmt.Errorf("error reade body response: %w", err)
 	}
 
-	var data []models.BillsList
+	var data []BillsList
 	if err := json.Unmarshal(body, &data); err != nil {
 		return nil, fmt.Errorf("error serialization JSON: %w", err)
 	}

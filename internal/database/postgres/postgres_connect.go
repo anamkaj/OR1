@@ -5,7 +5,7 @@ import (
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq" // PostgreSQL driver
 	"log"
-	"ord_crm/config"
+	"ord_crm/internal/config"
 )
 
 func PGconnect() (*sqlx.DB, error) {

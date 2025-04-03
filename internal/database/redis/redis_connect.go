@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/redis/go-redis/v9"
-	"ord_crm/config"
+	"ord_crm/internal/config"
 )
 
 func RedisConnect() (*redis.Client, error) {

@@ -1,11 +1,10 @@
-package file
+package excel
 
 import (
 	"fmt"
 	"github.com/xuri/excelize/v2"
 	"log"
-	"ord_crm/internal/domain/entity"
-	"ord_crm/internal/domain/repository"
+	"ord_crm/internal/scraper"
 	"sort"
 	"strconv"
 	"strings"
@@ -20,20 +19,32 @@ type RowData struct {
 	Acts     int64
 	FullName string
 	Count    int
+	Amount   string
+	Company  string
 }
 
 type RowNum struct {
-	Num int64
-	Row int
+	NumActYa int64
+	Row      int
+}
+
+type IgnoreEntry struct {
+	Name  string
+	ID    string
+	Error string
+	Link  string
+	Row   int
 }
 
 var sheet = "Sheet1"
 
-func NewExcelRepo() repository.ExcelRepository {
+var ignor = make(map[int]IgnoreEntry)
+
+func NewExcelRepo() ExcelRepository {
 	return &ExcelRepo{}
 }
 
-func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
+func (e *ExcelRepo) ExcelParse() ([]Excel, error) {
 	path := "./../storage/input/a.xlsx"
 
 	f, err := excelize.OpenFile(path)
@@ -48,12 +59,12 @@ func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
 		}
 	}()
 
-	var client []entity.Excel
+	var client []Excel
 	column := "R"
 	d := "B"
 
 	counter := make(map[string]int)
-	for row := 3; row < 1000; row++ {
+	for row := 3; row < 300; row++ {
 
 		login, err := f.GetCellValue(sheet, fmt.Sprintf("%s%d", d, row))
 		if err != nil {
@@ -90,7 +101,7 @@ func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
 		counter[login]++
 
 		if !exists {
-			client = append(client, entity.Excel{
+			client = append(client, Excel{
 				Login: login,
 				ID:    number,
 			})
@@ -112,7 +123,8 @@ func (e *ExcelRepo) ExcelParse() ([]entity.Excel, error) {
 	return client, err
 }
 
-func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
+func (e *ExcelRepo) ExcelImport(data [][]scraper.PivotTable) error {
+
 	path := "./../storage/input/a.xlsx"
 	f, err := excelize.OpenFile(path)
 	if err != nil {
@@ -134,14 +146,15 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 
 	item := newSearchClient(data, rowData)
 	if len(item) == 0 {
-		fmt.Println("Array is empty_: ", rowData)
+		fmt.Println("Array is empty_: ", item)
+
 	}
 
-	// где то сдесь можно сделать пометку разолкации
+	checkCompany(f, rowData, item)
 
-	// проверка фирм куда поступил платеж медиаплощадь vs адверта
+	// где то сдесь можно сделать пометку разолкации  -- как отметить сумму в докуменете или вывести в консоль.
 
-	groupItem := make(map[string][]entity.PivotTable)
+	groupItem := make(map[string][]scraper.PivotTable)
 	for _, v := range item {
 		groupItem[v.Acts.IdPayer] = append(groupItem[v.Acts.IdPayer], v)
 	}
@@ -162,21 +175,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 		})
 	}
 
-	ignor := make(map[int]struct {
-		name  string
-		id    string
-		error string
-		link  string
-	})
-
 	for idPayer, item := range groupItem {
-		var count int
-		for _, record := range rowData {
-			if record.Value == idPayer {
-				count = record.Count
-				break
-			}
-		}
 
 		rw, err := updateNumber(rowData, idPayer)
 		if err != nil {
@@ -185,26 +184,23 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 
 		switch {
 		case len(rw) == 0:
-			ignor[len(ignor)] = struct {
-				name  string
-				id    string
-				error string
-				link  string
-			}{
-				name:  item[0].Acts.Company,
-				id:    idPayer,
-				error: "No rows defined in ex for this IdPayer",
-				link:  "",
+			ignor[len(ignor)] = IgnoreEntry{
+				Name:  item[0].Acts.Company,
+				ID:    idPayer,
+				Error: "No rows defined in excel table for this IdPayer",
+				Link:  "",
 			}
 			continue
 
-		case count < len(item):
+		case len(rw) < len(item):
+
+			fmt.Println(len(rw), len(item))
 			// если актов несколоко , а строчек в докуменете меньше , дублируется последняя ячейка и вставляется акты
 			if len(rw) > 0 {
 				lastRow := rw[len(rw)-1].Row
 
 				if err := f.DuplicateRowTo(sheet, lastRow, lastRow+1); err != nil {
-					fmt.Println("Ошибка при дублировании строки:", err)
+					fmt.Println("error duplicate row from table:", err)
 				}
 
 				fmt.Printf("Add new line to:%s-%d\n", item[0].Acts.Company, lastRow+1)
@@ -218,7 +214,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 
 				rw, err = updateNumber(rowData, idPayer)
 				if err != nil {
-					fmt.Println("error update number act ya")
+					fmt.Println("error update number act YA")
 				}
 
 			}
@@ -236,7 +232,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 
 		case len(item) == 1:
 			element := item[0]
-			for i := 0; i < count; i++ {
+			for i := 0; i < len(rw); i++ {
 				row := rw[i].Row
 				err := insertData(f, element, row)
 				if err != nil {
@@ -244,7 +240,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 				}
 			}
 
-		case count == len(item):
+		case len(rw) == len(item):
 			for i, element := range item {
 				row := rw[i].Row
 				err := insertData(f, element, row)
@@ -254,37 +250,32 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 			}
 
 		default:
-			num := 0
-			for i := 0; i < count; i++ {
+			indexMap := make(map[int64]int)
+			nextIndex := 0
 
-				if i >= len(item) {
-					break
-				}
+			for i := 0; i < len(rw); i++ {
 
-				element := item[i]
+				element := item[i%len(item)]
 				row := rw[i].Row
 
-				if num == int(rw[i].Num) {
-					el := item[i-1]
-					err := insertData(f, el, row)
+				if s, ok := indexMap[rw[i].NumActYa]; ok {
+					err := insertData(f, item[s], row)
+					if err != nil {
+						return fmt.Errorf("error inserting data for payer %s: %w", element.Acts.Company, err)
+					}
+				} else {
+					index := nextIndex % len(item)
+					indexMap[rw[i].NumActYa] = index
+
+					err := insertData(f, item[index], row)
 					if err != nil {
 						return fmt.Errorf("error inserting data for payer %s: %w", element.Acts.Company, err)
 					}
 
+					nextIndex++
 				}
-
-				if i+1 < len(rw) {
-					nextRow := rw[i+1].Row
-					err := insertData(f, element, nextRow)
-					if err != nil {
-						return fmt.Errorf("error inserting data for payer %s: %w", element.Acts.Company, err)
-					}
-				}
-
-				num = int(rw[i].Num)
 
 			}
-
 		}
 
 	}
@@ -292,7 +283,7 @@ func (e *ExcelRepo) ExcelImport(data [][]entity.PivotTable) error {
 	for _, el := range ignor {
 		// fmt.Println("Данные клиенты не будут добавленны в файл. Возможные ошибки: нет актов, количество строк больше чем актов, требуется добавить ячеек.")
 
-		fmt.Printf("Error adding client %s : %s\n", el.name, el.error)
+		fmt.Printf("Error client %s : %s\n", el.Name, el.Error)
 
 	}
 
@@ -310,34 +301,42 @@ func updateNumber(rowData []RowData, idPayer string) ([]RowNum, error) {
 	for _, t := range rowData {
 		if t.Value == idPayer {
 			rw = append(rw, RowNum{
-				Num: t.Acts,
-				Row: t.Key,
+				NumActYa: t.Acts,
+				Row:      t.Key,
 			})
 		}
 	}
 
 	sort.Slice(rw, func(i, j int) bool {
-		return rw[i].Num < rw[j].Num
+		return rw[i].NumActYa < rw[j].NumActYa
 	})
 	return rw, nil
 }
 
 func scanDocument(f *excelize.File) ([]RowData, error) {
-	// Когда добавляем ячейки нужен пересчет документов
-
 	var rowData []RowData
 
 	for rw := 3; rw < 1000; rw++ {
 		number, err := f.GetCellValue(sheet, fmt.Sprintf("R%d", rw))
 		if err != nil {
-			log.Println("Error reading row")
+			log.Println("Error reading number")
 			return nil, err
 		}
 
 		act, err := f.GetCellValue(sheet, fmt.Sprintf("G%d", rw))
 		if err != nil {
-			log.Println("Error reading row")
+			log.Println("Error reading act")
 			return nil, err
+		}
+
+		amount, err := f.GetCellValue(sheet, fmt.Sprintf("AK%d", rw))
+		if err != nil {
+			log.Println("Error reading amount")
+			return nil, err
+		}
+		company, err := f.GetCellValue(sheet, fmt.Sprintf("K%d", rw))
+		if err != nil {
+			fmt.Println("error parse comp0any name")
 		}
 
 		if number != "" {
@@ -354,6 +353,8 @@ func scanDocument(f *excelize.File) ([]RowData, error) {
 				FullName: act,
 				Acts:     num,
 				Count:    0,
+				Amount:   amount,
+				Company:  company,
 			})
 
 		}
@@ -372,22 +373,34 @@ func scanDocument(f *excelize.File) ([]RowData, error) {
 	return rowData, nil
 }
 
-func newSearchClient(data [][]entity.PivotTable, cells []RowData) []entity.PivotTable {
+func newSearchClient(data [][]scraper.PivotTable, cells []RowData) []scraper.PivotTable {
 
-	valueMap := make(map[string]struct{})
+	amountMap := make(map[string][]struct {
+		Amount string
+		Row    int
+	})
+
 	for _, cell := range cells {
-		valueMap[cell.Value] = struct{}{}
+		amountMap[cell.Value] = append(amountMap[cell.Value], struct {
+			Amount string
+			Row    int
+		}{
+			Amount: cell.Amount,
+			Row:    cell.Key,
+		})
 	}
 
-	var items []entity.PivotTable
+	items := make([]scraper.PivotTable, 0)
+
 	for i, r := range data {
 		for j, v := range r {
-			if _, exists := valueMap[v.Acts.IdPayer]; exists {
+			if _, ok := amountMap[v.Acts.IdPayer]; ok {
 				str := v.Bills.Amount
 				result := strings.TrimSuffix(str, "руб.")
 				data[i][j].Bills.Amount = result
 				items = append(items, data[i][j])
 			}
+
 		}
 	}
 
@@ -395,7 +408,50 @@ func newSearchClient(data [][]entity.PivotTable, cells []RowData) []entity.Pivot
 
 }
 
-func insertData(f *excelize.File, v entity.PivotTable, row int) error {
+func checkCompany(f *excelize.File, rowData []RowData, items []scraper.PivotTable) {
+	rowMap := make(map[string][]RowData)
+	for _, s := range rowData {
+		rowMap[s.Value] = append(rowMap[s.Value], s)
+	}
+
+	for _, item := range items {
+		r := rowMap[item.Acts.IdPayer]
+		for _, s := range r {
+			company, err := f.GetCellValue(sheet, fmt.Sprintf("K%d", s.Key))
+			if err != nil {
+				fmt.Println("error parse comp0any name")
+			}
+
+			cleanCompany := cleanCompanyName(company)
+			cleanSelfPayer := cleanCompanyName(item.Acts.SelfPayer)
+
+			if !strings.Contains(cleanCompany, cleanSelfPayer) && !strings.Contains(cleanSelfPayer, cleanCompany) {
+				ignor[s.Key] = IgnoreEntry{
+					Name:  item.Acts.Company,
+					ID:    item.Acts.IdPayer,
+					Error: fmt.Sprintf("the company do not match pay: %d row", s.Key),
+					Link:  "",
+				}
+			}
+
+		}
+	}
+
+}
+
+func cleanCompanyName(company string) string {
+	company = strings.ToLower(company)
+	company = strings.TrimSpace(company)
+	company = strings.ReplaceAll(company, "\u00A0", " ") // Неразрывные пробелы
+	company = strings.ReplaceAll(company, `"`, "")       // Кавычки
+	company = strings.ReplaceAll(company, "–", "-")      // Тире
+	company = strings.ReplaceAll(company, " ", "")       // Все пробелы
+	company = strings.ReplaceAll(company, "-", "")       // Все дефисы
+	company = strings.Replace(company, "общество с ограниченной ответственностью", "", 1)
+	return company
+}
+
+func insertData(f *excelize.File, v scraper.PivotTable, row int) error {
 
 	data := map[string]string{
 		"Z":  v.Acts.Bill,
@@ -411,12 +467,14 @@ func insertData(f *excelize.File, v entity.PivotTable, row int) error {
 
 	for col, value := range data {
 		cell := fmt.Sprintf("%s%d", col, row)
+
 		val, err := f.GetCellValue(sheet, cell)
 		if err != nil {
 			return err
 		}
 
 		if val == "" {
+			fmt.Printf("Add new data to: %s-%d\n", v.Acts.Company, row)
 			if err := f.SetCellValue(sheet, cell, value); err != nil {
 				return err
 			}
@@ -434,8 +492,8 @@ func billsTime(d string) string {
 
 	parsedTime, err := time.Parse(layoutInput, d)
 	if err != nil {
-		fmt.Println("error parsing date bill")
-		return ""
+		fmt.Println(err)
+		return "error parsing time"
 	}
 
 	return parsedTime.Format(layoutOutput)

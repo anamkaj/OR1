@@ -1,4 +1,4 @@
-package api
+package scraper
 
 import (
 	"bytes"
@@ -8,7 +8,6 @@ import (
 	"log"
 	"net/http"
 	"net/url"
-	"ord_crm/internal/domain/entity"
 	"slices"
 	"strconv"
 	"strings"
@@ -16,10 +15,10 @@ import (
 )
 
 type SearchApi struct {
-	Search entity.Search
+	Search Search
 }
 
-func NewSearchRepo(s entity.Search) *SearchApi {
+func NewSearchRepo(s Search) *SearchApi {
 	return &SearchApi{
 		Search: s,
 	}
@@ -36,7 +35,7 @@ func (с *SearchApi) SearchID(id string) (int, error) {
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		fmt.Println("error request to CRM")
-		return -1, err
+		return 0, err
 	}
 
 	req.Header.Add("Cookie", с.Search.Session)
@@ -44,12 +43,13 @@ func (с *SearchApi) SearchID(id string) (int, error) {
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Println("Error request")
+		return 0, err
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		fmt.Println("Err reading body response")
-		return -1, err
+		return 0, err
 
 	}
 
@@ -76,16 +76,20 @@ func (с *SearchApi) SearchID(id string) (int, error) {
 	parts := strings.Split(company, "/")
 	str := parts[len(parts)-1]
 
+	if str == "" {
+		return 0, nil
+	}
+
 	num, err := strconv.Atoi(str)
 	if err != nil {
-		return -1, err
+		return 0, err
 	}
 
 	return num, nil
 
 }
 
-func (c *SearchApi) ActSearch(id string, bills []string) ([]entity.PivotTable, error) {
+func (c *SearchApi) ActSearch(id string, bills []string) ([]PivotTable, error) {
 
 	params := url.Values{}
 	params.Add("utf8", "✓")
@@ -121,8 +125,7 @@ func (c *SearchApi) ActSearch(id string, bills []string) ([]entity.PivotTable, e
 		log.Fatal(err)
 	}
 
-	var data []entity.PivotTable
-
+	var data []PivotTable
 	act, err := parseAct(doc, id, bills)
 	if err != nil {
 		fmt.Println("Error parsing act info")
@@ -130,14 +133,13 @@ func (c *SearchApi) ActSearch(id string, bills []string) ([]entity.PivotTable, e
 	}
 
 	for _, bill := range act {
-
 		b, err := c.Bills(strings.TrimSpace(bill.LinkBill))
 		if err != nil {
 			fmt.Println("Error parsing act info")
 			return nil, err
 		}
 
-		data = append(data, entity.PivotTable{
+		data = append(data, PivotTable{
 			Acts:  bill,
 			Bills: b,
 		})
@@ -147,7 +149,7 @@ func (c *SearchApi) ActSearch(id string, bills []string) ([]entity.PivotTable, e
 	return data, nil
 }
 
-func (c *SearchApi) Bills(link string) (entity.Bills, error) {
+func (c *SearchApi) Bills(link string) (Bills, error) {
 	url := fmt.Sprintf("%s%s", c.Search.BillsURL, link)
 
 	req, err := http.NewRequest("GET", url, nil)
@@ -183,9 +185,9 @@ func (c *SearchApi) Bills(link string) (entity.Bills, error) {
 	return bills, nil
 }
 
-func parseBills(n *goquery.Document) (entity.Bills, error) {
+func parseBills(n *goquery.Document) (Bills, error) {
 
-	var row entity.Bills
+	var row Bills
 
 	n.Find("tbody").Each(func(index int, tbody *goquery.Selection) {
 		tbody.Find("tr").Each(func(index int, tr *goquery.Selection) {
@@ -207,25 +209,28 @@ func parseBills(n *goquery.Document) (entity.Bills, error) {
 
 }
 
-func parseAct(n *goquery.Document, id string, bills []string) ([]entity.Acts, error) {
-	var act []entity.Acts
+func parseAct(n *goquery.Document, id string, bills []string) ([]Acts, error) {
+	var act []Acts
+
+	var billsUpper []string
+	for _, s := range bills {
+		billsUpper = append(billsUpper, strings.ToUpper(s))
+	}
 
 	n.Find("tbody").Each(func(index int, tbody *goquery.Selection) {
 		tbody.Find("tr").Each(func(index int, tr *goquery.Selection) {
 
-			bill := tr.Find("td.bill").Text()
-
+			bill := strings.ToUpper(strings.TrimSpace(tr.Find("td.bill").Text()))
 			// если есть номера счетов , собираем только те которые есть в массиве bills
-			if slices.Contains(bills, bill) {
-
+			if slices.Contains(billsUpper, bill) {
 				date := tr.Find("td.date").Text()
 				result, err := timeParse(date)
 				if err != nil {
-					fmt.Println("Error parse date act")
+					fmt.Println("Error parsing date for", bill, ":", err)
 				}
 
 				if result {
-					row := entity.Acts{
+					row := Acts{
 						StatementNumber: tr.Find("td.statement_number").Text(),
 						Date:            tr.Find("td.date").Text(),
 						Amount:          tr.Find("td.amount").Text(),
@@ -261,26 +266,25 @@ func parseAct(n *goquery.Document, id string, bills []string) ([]entity.Acts, er
 
 // что делать с теми актами которые позже выставленны на 2 месяца ??? Мы забираем только те которые выставленны за 1 месяц !!!
 
-func timeParse(date string) (bool, error) {
-	layout := "02.01.2006" //dd.mm.yyyy
+// дата не должна выходить за пределы месяца старого иначе он берет новаые акты
+// АД4193	31.03.2025
+// 	АД3076	28.02.2025    	01.02.2025 - 28.02.2025
 
+func timeParse(date string) (bool, error) {
+	layout := "02.01.2006" // dd.mm.yyyy
 	parseTime, err := time.Parse(layout, date)
 	if err != nil {
-		fmt.Println("Error parsing Date Act", err)
+		fmt.Println("Ошибка разбора даты", err)
 		return false, err
 	}
 	parseTimeUTC := parseTime.UTC()
+	now := time.Now().UTC()
+	startOfPrevMonth := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, time.UTC) // 01.02
+	endOfPrevMonth := startOfPrevMonth.AddDate(0, -1, 0)
 
-	referenceDate := time.Now().AddDate(0, -1, 0).UTC()
-	startOfMonth := time.Date(referenceDate.Year(), referenceDate.Month(), 1, 0, 0, 0, 0, referenceDate.UTC().Location())
-
-	for !startOfMonth.Equal(parseTimeUTC) {
-		if startOfMonth.After(parseTimeUTC) {
-			return false, nil
-		}
-		startOfMonth = startOfMonth.AddDate(0, 0, 1)
-
+	if parseTimeUTC.Before(startOfPrevMonth) && parseTimeUTC.After(endOfPrevMonth) {
+		return true, nil
 	}
 
-	return true, nil
+	return false, nil
 }

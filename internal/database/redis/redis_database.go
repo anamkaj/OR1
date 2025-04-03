@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"ord_crm/internal/scraper"
 	"github.com/redis/go-redis/v9"
-	"ord_crm/internal/domain/entity"
 )
 
 var ctx = context.Background()
@@ -20,7 +20,7 @@ func NewStoreRepo(d *redis.Client) *Store {
 	}
 }
 
-func (s *Store) AddNewAct(data []entity.PivotTable) error {
+func (s *Store) AddNewAct(data []scraper.PivotTable) error {
 
 	for _, r := range data {
 
